@@ -1,0 +1,118 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light"><meta name="robots" content="noindex,nofollow,noarchive"><meta name="referrer" content="no-referrer"><title>AI 마음 건강 대화 검토</title>
+<style>
+:root{--ink:#15233A;--mut:#5B6B80;--line:#DDE3EA;--teal:#0E5E6F;--teal2:#137B8F;--mist:#F1F4F8;--ok:#2E9D6A;--bad:#D64545}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#fff;color:var(--ink);font:14.5px/1.6 "Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}:focus-visible{outline:2px solid var(--teal2);outline-offset:2px}
+#bar{height:44px;display:flex;align-items:stretch;gap:4px;padding:0 16px;background:var(--ink);color:#fff}
+#bar .t{align-self:center;font-weight:800;font-size:13.5px;margin-right:14px;white-space:nowrap}
+.tab{border:0;background:none;color:rgba(255,255,255,.72);padding:0 14px;cursor:pointer;font-size:13.5px;white-space:nowrap;position:relative}
+.tab small{margin-left:6px;font-size:11.5px;opacity:.8}.tab:hover{color:#fff}
+.tab.on{color:#fff;font-weight:800}.tab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:#fff}
+#bar .sp{flex:1}
+#sync{align-self:center;font-size:12px;color:rgba(255,255,255,.78);white-space:nowrap;display:flex;align-items:center;gap:6px}
+#sync i{width:8px;height:8px;border-radius:50%;background:#8FA0B5}#sync.ok i{background:#5BD39A}#sync.busy i{background:#F2C14E}#sync.err i{background:#FF8A8A}#sync.err{color:#FFD2D2;font-weight:700}
+#save{align-self:center;margin-left:10px;border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer}#save:hover{background:rgba(255,255,255,.12)}
+#stage{position:absolute;inset:44px 0 0 0}
+#stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.center{position:absolute;inset:0;display:grid;place-items:center;padding:24px}
+.card{max-width:520px;width:100%}.card h1{font-size:22px;letter-spacing:-.4px;margin:0 0 8px}.card p{color:var(--mut);margin:0 0 14px;word-break:keep-all}
+.card label{display:block;font-size:12.5px;color:var(--mut);margin:10px 0 4px}
+.card input{width:100%;height:40px;border:1px solid var(--line);border-radius:9px;padding:0 11px}
+.card button{margin-top:14px;height:40px;padding:0 18px;border:0;border-radius:9px;background:var(--teal);color:#fff;font-weight:700;cursor:pointer}
+.card .err{color:var(--bad);font-weight:700}
+.load{display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:13px;color:var(--mut)}.load b{color:var(--ink)}
+@media (max-width:720px){#bar .t{display:none}.tab{padding:0 9px}.tab small{display:none}#save{display:none}}
+</style></head><body>
+<div id="bar"><span class="t">AI 마음 건강 대화 검토</span><span id="tabs" style="display:flex"></span><span class="sp"></span><span id="sync"><i></i><span id="syncT"></span></span><button id="save" hidden>지금 저장</button></div>
+<div id="stage"><div class="center" id="msg"></div></div>
+<script>
+/* 자문 통합 화면: 두 자문 도구(평가 체계 ①~④, 위해 수준 기준)를 한 주소에서 열고,
+   진행 내용을 저장소 progress/<전문가>/에 자동으로 커밋하며, 다시 열 때 저장소에서 복원한다.
+   이 파일에는 자문 데이터도 토큰도 없다. 둘 다 접속 링크의 # 뒤에 붙은 키로 비공개 저장소에서 읽는다. */
+const REPO="aic-chanhumyoon/mental_health_feedback",BRANCH="main",AUTHKEY="mh_app_auth";
+const APPS=[
+ {id:"expert",label:"1. 채점 방법 검토",sub:"",tpl:"tool/template.html",data:"tool/data.json",key:e=>"mh_expert_review_v4_"+e,v:4,file:"expert_review.json"},
+ {id:"harm",label:"2. 위해 점수 기준 검토",sub:"",tpl:"tool_harm/template.html",data:"tool_harm/data.json",key:e=>"mh_harm_review_v3_"+e,v:3,file:"harm_review.json"}];
+const $=s=>document.querySelector(s),esc=s=>(s??"").toString().replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hm=()=>new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+/* ---- 접속 정보: 링크의 #e=<전문가>&k=<키> ---- */
+let AUTH=null;
+(function(){const h=new URLSearchParams(location.hash.slice(1)),e=h.get("e"),k=h.get("k"),temp=h.get("temp")==="1";
+ if(e&&k){AUTH={e,k};try{(temp?sessionStorage:localStorage).setItem(AUTHKEY,JSON.stringify(AUTH))}catch(x){}}
+ else{try{AUTH=JSON.parse(sessionStorage.getItem(AUTHKEY)||localStorage.getItem(AUTHKEY)||"null")}catch(x){}}
+ if(location.hash)history.replaceState(null,"",location.pathname+location.search)})();
+const E=AUTH&&AUTH.e;
+/* ---- 저장소 API ---- */
+const base=`https://api.github.com/repos/${REPO}/contents/`;
+const hdr=raw=>({Authorization:"Bearer "+AUTH.k,Accept:raw?"application/vnd.github.raw+json":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"});
+class ApiError extends Error{constructor(s,m){super(`${s} ${m||""}`.trim());this.status=s}}
+async function getRaw(path){const r=await fetch(base+encodeURI(path)+"?ref="+BRANCH+"&t="+Date.now(),{headers:hdr(true),cache:"no-store"});if(!r.ok)throw new ApiError(r.status,path);return r.text()}
+async function listDir(path){const r=await fetch(base+encodeURI(path)+"?ref="+BRANCH+"&t="+Date.now(),{headers:hdr(false),cache:"no-store"});if(r.status===404)return {};if(!r.ok)throw new ApiError(r.status,path);
+ const a=await r.json();return Object.fromEntries((Array.isArray(a)?a:[]).map(f=>[f.name,f.sha]))}
+function b64(s){const u=new TextEncoder().encode(s);let o="";for(let i=0;i<u.length;i+=0x8000)o+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(o)}
+async function putFile(path,text,message,sha){const r=await fetch(base+encodeURI(path),{method:"PUT",headers:hdr(false),body:JSON.stringify({message,content:b64(text),branch:BRANCH,...(sha?{sha}:{})})});
+ if(!r.ok){let m="";try{m=(await r.json()).message||""}catch(e){}throw new ApiError(r.status,m)}return (await r.json()).content.sha}
+/* ---- 진행 내용 동기화: localStorage ↔ progress/<E>/<file> ---- */
+const dir=()=>`progress/${E}`;
+const ST={};APPS.forEach(a=>ST[a.id]={sha:null,pushed:"",dirty:false,timer:null,first:0,busy:false,frame:null});
+const local=a=>{try{return JSON.parse(localStorage.getItem(a.key(E))||"null")}catch(e){return null}};
+function setSync(cls,t){$("#sync").className=cls;$("#syncT").textContent=t}
+async function pull(){const shas=await listDir(dir());let restored=0;
+ for(const a of APPS){const s=ST[a.id];s.sha=shas[a.file]||null;const loc=local(a);let rem=null;
+  if(s.sha){try{rem=JSON.parse(await getRaw(`${dir()}/${a.file}`))}catch(e){rem=null}}
+  const rs=rem&&rem.state&&rem.state.v===a.v?rem.state:null;
+  if(rs&&(!loc||!loc.saved||(rs.saved||"")>(loc.saved||""))){localStorage.setItem(a.key(E),JSON.stringify(rs));s.pushed=rs.saved||"";restored++}
+  else if(rs){s.pushed=rs.saved||"";if(loc&&(loc.saved||"")>s.pushed)s.dirty=true}
+  else if(loc&&loc.saved)s.dirty=true}
+ return restored}
+function schedule(a,soon){const s=ST[a.id];s.dirty=true;if(!s.first)s.first=Date.now();clearTimeout(s.timer);
+ const wait=soon?0:Math.max(0,Math.min(20000,90000-(Date.now()-s.first)));s.timer=setTimeout(()=>push(a),wait);if(!s.busy)setSync("busy","곧 저장합니다")}
+async function push(a,retry){const s=ST[a.id];if(s.busy)return;const loc=local(a);
+ if(!loc||!loc.saved||loc.saved===s.pushed){s.dirty=false;s.first=0;return}
+ s.busy=true;setSync("busy","저장하는 중");
+ try{const at=new Date(),stamp=at.toISOString().replace(/[-:]/g,"").replace("T","-").slice(0,15);
+  const text=JSON.stringify({tool:a.id,expert:E,saved:loc.saved,pushed:at.toISOString(),state:loc},null,1);
+  s.sha=await putFile(`${dir()}/${a.file}`,text,`자동 저장 ${E} ${a.label} ${stamp}`,s.sha);
+  s.pushed=loc.saved;s.dirty=false;s.first=0;setSync("ok",`자동으로 저장됨 ${hm()}`);
+  const now=local(a);if(now&&now.saved&&now.saved!==s.pushed)schedule(a)}
+ catch(e){if((e.status===409||e.status===422)&&!retry){try{s.sha=(await listDir(dir()))[a.file]||null}catch(x){}s.busy=false;await push(a,true);return}
+  s.dirty=true;setSync("err",e.status===401||e.status===403?"저장이 되지 않았습니다. 받으신 링크를 다시 눌러 주십시오":"저장이 되지 않았습니다. 잠시 뒤 다시 시도합니다");clearTimeout(s.timer);s.timer=setTimeout(()=>push(a),30000)}
+ finally{s.busy=false}}
+const flush=()=>Promise.all(APPS.map(a=>{clearTimeout(ST[a.id].timer);return push(a)}));
+window.addEventListener("storage",e=>{const a=APPS.find(x=>x.key(E)===e.key);if(a)schedule(a)});
+setInterval(()=>{if(!E)return;APPS.forEach(a=>{const s=ST[a.id],loc=local(a);if(loc&&loc.saved&&loc.saved!==s.pushed&&!s.dirty&&!s.busy)schedule(a)});tabs()},5000);
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&E)flush()});
+window.addEventListener("pagehide",()=>{if(E)flush()});
+/* ---- 화면 ---- */
+let CUR=null;
+function tabs(){$("#tabs").innerHTML=APPS.map(a=>{let p="";try{const w=ST[a.id].frame&&ST[a.id].frame.contentWindow;if(w&&typeof w.prog==="function"){const v=w.prog();p=(v&&typeof v==="object"?v.pct:v)+"%"}}catch(e){}
+ return `<button class="tab ${CUR===a.id?"on":""}" data-app="${a.id}">${esc(a.label)}<small>${p}</small></button>`}).join("")}
+$("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-app]");if(b)show(b.dataset.app)});
+$("#save").onclick=()=>{flush().then(()=>{if(!APPS.some(a=>ST[a.id].dirty))setSync("ok",`자동으로 저장됨 ${hm()}`)})};
+const TPL={};
+async function build(a){if(!TPL[a.id]){const [tpl,data]=await Promise.all([getRaw(a.tpl),getRaw(a.data)]);
+  const sub=JSON.stringify({repo:REPO,token:AUTH.k});
+  TPL[a.id]=tpl.split("__EXPERT__").join(E).split("__SUBMIT__").join(sub).split("__DATA__").join(data.replace(/<\//g,"<\\/"))}
+ return TPL[a.id]}
+async function show(id){const a=APPS.find(x=>x.id===id),s=ST[id];CUR=id;try{sessionStorage.setItem("mh_app_tab",id)}catch(e){}tabs();
+ APPS.forEach(x=>{if(ST[x.id].frame)ST[x.id].frame.style.display=x.id===id?"":"none"});
+ if(s.frame){$("#msg").hidden=true;return}
+ $("#msg").hidden=false;$("#msg").innerHTML=`<div class="card"><h1>${esc(a.label)}</h1><div class="load"><span>자료를 불러오는 중입니다. 잠시만 기다려 주십시오.</span></div></div>`;
+ try{const html=await build(a);if(s.frame)return;const f=document.createElement("iframe");f.title=a.label;f.srcdoc=html;f.style.display=CUR===id?"":"none";s.frame=f;$("#stage").appendChild(f);
+  f.addEventListener("load",()=>{if(CUR===id)$("#msg").hidden=true;tabs()})}
+ catch(e){fail(e)}}
+function fail(e){const m=e&&(e.status===401||e.status===403)?"링크가 더 이상 맞지 않습니다. 받으신 링크를 다시 눌러 주시고, 그래도 안 되면 담당자에게 알려 주십시오.":e&&e.status===404?"자료를 찾지 못했습니다. 담당자에게 알려 주십시오.":"자료를 불러오지 못했습니다. 인터넷 연결을 확인하신 뒤 화면을 새로 고쳐 주십시오.";
+ $("#msg").hidden=false;$("#msg").innerHTML=`<div class="card"><h1>열 수 없습니다</h1><p class="err">${esc(m)}</p><p style="font-size:12px">담당자에게 알려 주실 때 함께 전해 주십시오: ${esc(String(e&&e.message||e))}</p></div>`;setSync("err","연결되지 않음")}
+function needAuth(){$("#bar").style.display="none";$("#stage").style.inset="0";$("#msg").innerHTML=`<div class="card"><h1>AI 마음 건강 대화 검토</h1>
+ <p>이 화면은 담당자가 보내 드린 링크로 여셔야 합니다. 받으신 링크를 다시 눌러 주십시오.</p>
+ <details><summary style="cursor:pointer;color:var(--mut);font-size:13px">링크가 없을 때</summary><label for="ae">전문가 ID</label><input id="ae" autocomplete="off"><label for="ak">접속 키</label><input id="ak" type="password" autocomplete="off"><button id="ab">열기</button></details></div>`;
+ $("#ab").onclick=()=>{const e=$("#ae").value.trim(),k=$("#ak").value.trim();if(e&&k){location.hash="e="+encodeURIComponent(e)+"&k="+encodeURIComponent(k);location.reload()}}}
+async function start(){if(!AUTH){needAuth();return}
+ $("#msg").innerHTML=`<div class="card"><h1>AI 마음 건강 대화 검토</h1><div class="load"><span>하시던 내용을 확인하는 중입니다. 잠시만 기다려 주십시오.</span></div></div>`;setSync("busy","확인하는 중");tabs();
+ try{const n=await pull();setSync("ok",n?"하시던 곳부터 이어집니다":"준비됐습니다");$("#save").hidden=false}catch(e){fail(e);return}
+ APPS.forEach(a=>{if(ST[a.id].dirty)schedule(a,true)});
+ let first=APPS[0].id;try{first=sessionStorage.getItem("mh_app_tab")||first}catch(e){}
+ show(APPS.some(a=>a.id===first)?first:APPS[0].id)}
+start();
+</script></body></html>
