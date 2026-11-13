@@ -67,7 +67,7 @@ async function pull(){const shas=await listDir(dir());let restored=0;
   else if(loc&&loc.saved)s.dirty=true}
  return restored}
 function schedule(a,soon){const s=ST[a.id];s.dirty=true;if(!s.first)s.first=Date.now();clearTimeout(s.timer);
- const wait=soon?0:Math.max(0,Math.min(20000,90000-(Date.now()-s.first)));s.timer=setTimeout(()=>push(a),wait);if(!s.busy)setSync("busy","곧 저장합니다")}
+ const wait=soon?0:Math.max(0,Math.min(20000,90000-(Date.now()-s.first)));s.timer=setTimeout(()=>push(a),wait);if(!s.busy)setSync("ok",`이 컴퓨터에 저장됨 ${hm()}`)}
 async function push(a,retry){const s=ST[a.id];if(s.busy)return;const loc=local(a);
  if(!loc||!loc.saved||loc.saved===s.pushed){s.dirty=false;s.first=0;return}
  s.busy=true;setSync("busy","저장하는 중");
@@ -84,9 +84,12 @@ window.addEventListener("storage",e=>{const a=APPS.find(x=>x.key(E)===e.key);if(
 setInterval(()=>{if(!E)return;APPS.forEach(a=>{const s=ST[a.id],loc=local(a);if(loc&&loc.saved&&loc.saved!==s.pushed&&!s.dirty&&!s.busy)schedule(a)});tabs()},5000);
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&E)flush()});
 window.addEventListener("pagehide",()=>{if(E)flush()});
+window.addEventListener("beforeunload",e=>{if(E&&APPS.some(a=>ST[a.id].dirty||ST[a.id].busy)){flush();e.preventDefault();e.returnValue=""}});
 /* ---- 화면 ---- */
 let CUR=null;
-function tabs(){$("#tabs").innerHTML=APPS.map(a=>{let p="";try{const w=ST[a.id].frame&&ST[a.id].frame.contentWindow;if(w&&typeof w.prog==="function"){const v=w.prog();p=(v&&typeof v==="object"?v.pct:v)+"%"}}catch(e){}
+function tabs(){const ex=$("#tabs").querySelectorAll("[data-app]");if(ex.length===APPS.length){ex.forEach(b=>{const a=APPS.find(x=>x.id===b.dataset.app);let p="";try{const w=ST[a.id].frame&&ST[a.id].frame.contentWindow;if(w&&typeof w.prog==="function"){const v=w.prog();p=(v&&typeof v==="object"?v.pct:v)+"%"}}catch(e){}
+  b.classList.toggle("on",CUR===a.id);const sm=b.querySelector("small");if(sm&&sm.textContent!==p)sm.textContent=p});return}
+ $("#tabs").innerHTML=APPS.map(a=>{let p="";try{const w=ST[a.id].frame&&ST[a.id].frame.contentWindow;if(w&&typeof w.prog==="function"){const v=w.prog();p=(v&&typeof v==="object"?v.pct:v)+"%"}}catch(e){}
  return `<button class="tab ${CUR===a.id?"on":""}" data-app="${a.id}">${esc(a.label)}<small>${p}</small></button>`}).join("")}
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-app]");if(b)show(b.dataset.app)});
 $("#save").onclick=()=>{flush().then(()=>{if(!APPS.some(a=>ST[a.id].dirty))setSync("ok",`자동으로 저장됨 ${hm()}`)})};
