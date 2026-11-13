@@ -33,7 +33,7 @@ button,input{font:inherit;color:inherit}:focus-visible{outline:2px solid var(--t
 const REPO="aic-chanhumyoon/mental_health_feedback",BRANCH="main",AUTHKEY="mh_app_auth";
 const APPS=[
  {id:"expert",label:"1. 채점 방법 검토",sub:"",tpl:"tool/template.html",data:"tool/data.json",key:e=>"mh_expert_review_v4_"+e,v:4,file:"expert_review.json"},
- {id:"harm",label:"2. 위해 점수 기준 검토",sub:"",tpl:"tool_harm/template.html",data:"tool_harm/data.json",key:e=>"mh_harm_review_v3_"+e,v:3,file:"harm_review.json"}];
+ {id:"harm",label:"2. 위해 점수 기준 검토",sub:"",tpl:"tool_harm/template.html",data:"tool_harm/data.json",key:e=>"mh_harm_review_v4_"+e,v:4,file:"harm_review.json"}];
 const $=s=>document.querySelector(s),esc=s=>(s??"").toString().replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hm=()=>new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
 /* ---- 접속 정보: 링크의 #e=<전문가>&k=<키> ---- */
