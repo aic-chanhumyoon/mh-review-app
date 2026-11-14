@@ -10,6 +10,13 @@ button,input{font:inherit;color:inherit}:focus-visible{outline:2px solid var(--t
 .tab small{margin-left:6px;font-size:11.5px;opacity:.8}.tab:hover{color:#fff}
 .tab.on{color:#fff;font-weight:800}.tab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:#fff}
 #bar .sp{flex:1}
+#whoami{align-self:center;font-size:13px;font-weight:800;margin-right:14px;white-space:nowrap}
+.wel{max-width:600px}.wel .to{font-size:15px;font-weight:800;color:var(--teal);margin:0 0 4px}.wel h1{font-size:25px}
+.part{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;width:100%;text-align:left;margin:10px 0 0!important;height:auto!important;padding:13px 16px!important;border:1px solid var(--line)!important;border-radius:12px!important;background:#fff!important;color:var(--ink)!important;font-weight:400!important;cursor:pointer}
+.part:hover{border-color:var(--teal2)!important}.part b{font-size:15.5px}.part span{grid-column:1;font-size:13px;color:var(--mut)}
+.part em{grid-column:2;grid-row:1/3;align-self:center;font-style:normal;font-size:12.5px;color:var(--mut);background:var(--mist);border-radius:999px;padding:2px 10px;white-space:nowrap}.part em.on{background:#E4F4EB;color:#1F7A50;font-weight:700}
+.wel ul{margin:16px 0 0;padding-left:18px;font-size:13.5px;color:var(--mut)}.wel li{margin:4px 0;word-break:keep-all}
+.wel #go{height:46px;padding:0 26px;font-size:16px}
 #sync{align-self:center;font-size:12px;color:rgba(255,255,255,.78);white-space:nowrap;display:flex;align-items:center;gap:6px}
 #sync i{width:8px;height:8px;border-radius:50%;background:#8FA0B5}#sync.ok i{background:#5BD39A}#sync.busy i{background:#F2C14E}#sync.err i{background:#FF8A8A}#sync.err{color:#FFD2D2;font-weight:700}
 #save{align-self:center;margin-left:10px;border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer}#save:hover{background:rgba(255,255,255,.12)}
@@ -22,9 +29,9 @@ button,input{font:inherit;color:inherit}:focus-visible{outline:2px solid var(--t
 .card button{margin-top:14px;height:40px;padding:0 18px;border:0;border-radius:9px;background:var(--teal);color:#fff;font-weight:700;cursor:pointer}
 .card .err{color:var(--bad);font-weight:700}
 .load{display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:13px;color:var(--mut)}.load b{color:var(--ink)}
-@media (max-width:720px){#bar .t{display:none}.tab{padding:0 9px}.tab small{display:none}#save{display:none}}
+@media (max-width:720px){.part{grid-template-columns:1fr}.part em{grid-column:1;grid-row:auto;justify-self:start;margin-top:4px}#bar .t{display:none}.tab{padding:0 9px}.tab small{display:none}#save{display:none}}
 </style></head><body>
-<div id="bar"><span class="t">AI 마음 건강 대화 검토</span><span id="tabs" style="display:flex"></span><span class="sp"></span><span id="sync"><i></i><span id="syncT"></span></span><button id="save" hidden>지금 저장</button></div>
+<div id="bar"><span class="t">AI 마음 건강 대화 검토</span><span id="tabs" style="display:flex"></span><span class="sp"></span><span id="whoami"></span><span id="sync"><i></i><span id="syncT"></span></span><button id="save" hidden>지금 저장</button></div>
 <div id="stage"><div class="center" id="msg"></div></div>
 <script>
 /* 자문 통합 화면: 두 자문 도구(평가 체계 ①~④, 위해 수준 기준)를 한 주소에서 열고,
@@ -32,8 +39,8 @@ button,input{font:inherit;color:inherit}:focus-visible{outline:2px solid var(--t
    이 파일에는 자문 데이터도 토큰도 없다. 둘 다 접속 링크의 # 뒤에 붙은 키로 비공개 저장소에서 읽는다. */
 const REPO="aic-chanhumyoon/mental_health_feedback",BRANCH="main",AUTHKEY="mh_app_auth";
 const APPS=[
- {id:"expert",label:"1. 채점 방법 검토",sub:"",tpl:"tool/template.html",data:"tool/data.json",key:e=>"mh_expert_review_v4_"+e,v:4,file:"expert_review.json"},
- {id:"harm",label:"2. 위해 점수 기준 검토",sub:"",tpl:"tool_harm/template.html",data:"tool_harm/data.json",key:e=>"mh_harm_review_v4_"+e,v:4,file:"harm_review.json"}];
+ {id:"expert",label:"1. 채점 방법 검토",desc:"AI 응답을 채점하는 방법을 확인하고, 실제 대화를 직접 채점해 봅니다.",sub:"",tpl:"tool/template.html",data:"tool/data.json",key:e=>"mh_expert_review_v4_"+e,v:4,file:"expert_review.json"},
+ {id:"harm",label:"2. 위해 점수 기준 검토",desc:"AI 응답의 해로운 정도를 0~5점으로 매기는 기준을 예시와 함께 검토합니다.",sub:"",tpl:"tool_harm/template.html",data:"tool_harm/data.json",key:e=>"mh_harm_review_v6_"+e,v:6,file:"harm_review.json"}];
 const $=s=>document.querySelector(s),esc=s=>(s??"").toString().replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hm=()=>new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
 /* ---- 접속 정보: 링크의 #e=<전문가>&k=<키> ---- */
@@ -94,9 +101,16 @@ function tabs(){const ex=$("#tabs").querySelectorAll("[data-app]");if(ex.length=
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-app]");if(b)show(b.dataset.app)});
 $("#save").onclick=()=>{flush().then(()=>{if(!APPS.some(a=>ST[a.id].dirty))setSync("ok",`자동으로 저장됨 ${hm()}`)})};
 const TPL={};
+/* 화면에 보일 이름은 비공개 저장소의 app/people.json에서 읽는다(이 파일에는 이름을 두지 않는다) */
+let NAME="";
+async function who(){try{const p=JSON.parse(await getRaw("app/people.json"));NAME=(p&&typeof p[E]==="string"&&p[E])||""}catch(e){NAME=""}$("#whoami").textContent=NAME}
+/* 통합 화면에서는 답이 저장소에 저절로 쌓이므로 파일 내려받기·불러오기 버튼을 숨기고, 성함 칸을 미리 채운다 */
+function extra(){const nm=JSON.stringify(NAME.replace(/\s*(교수님|선생님)$/,"")).replace(/</g,"\\u003c");
+ return `<style>.band .hb:not(#sendbtn){display:none}button[onclick="exportCSV()"],button[onclick="exportJSON()"]{display:none}</style><script>try{if(${nm}&&!S.name){S.name=${nm};const w=document.getElementById("who");if(w)w.value=S.name;persist()}}catch(e){}<\/script>`}
 async function build(a){if(!TPL[a.id]){const [tpl,data]=await Promise.all([getRaw(a.tpl),getRaw(a.data)]);
   const sub=JSON.stringify({repo:REPO,token:AUTH.k});
-  TPL[a.id]=tpl.split("__EXPERT__").join(E).split("__SUBMIT__").join(sub).split("__DATA__").join(data.replace(/<\//g,"<\\/"))}
+  let h=tpl.split("__EXPERT__").join(E).split("__SUBMIT__").join(sub).split("__DATA__").join(data.replace(/<\//g,"<\\/"));
+  const i=h.lastIndexOf("</body>");TPL[a.id]=i<0?h+extra():h.slice(0,i)+extra()+h.slice(i)}
  return TPL[a.id]}
 async function show(id){const a=APPS.find(x=>x.id===id),s=ST[id];CUR=id;try{sessionStorage.setItem("mh_app_tab",id)}catch(e){}tabs();
  APPS.forEach(x=>{if(ST[x.id].frame)ST[x.id].frame.style.display=x.id===id?"":"none"});
@@ -113,9 +127,17 @@ function needAuth(){$("#bar").style.display="none";$("#stage").style.inset="0";$
  $("#ab").onclick=()=>{const e=$("#ae").value.trim(),k=$("#ak").value.trim();if(e&&k){location.hash="e="+encodeURIComponent(e)+"&k="+encodeURIComponent(k);location.reload()}}}
 async function start(){if(!AUTH){needAuth();return}
  $("#msg").innerHTML=`<div class="card"><h1>AI 마음 건강 대화 검토</h1><div class="load"><span>하시던 내용을 확인하는 중입니다. 잠시만 기다려 주십시오.</span></div></div>`;setSync("busy","확인하는 중");tabs();
- try{const n=await pull();setSync("ok",n?"하시던 곳부터 이어집니다":"준비됐습니다");$("#save").hidden=false}catch(e){fail(e);return}
+ try{const n=await pull();await who();setSync("ok",n?"하시던 곳부터 이어집니다":"준비됐습니다");$("#save").hidden=false}catch(e){fail(e);return}
  APPS.forEach(a=>{if(ST[a.id].dirty)schedule(a,true)});
  let first=APPS[0].id;try{first=sessionStorage.getItem("mh_app_tab")||first}catch(e){}
- show(APPS.some(a=>a.id===first)?first:APPS[0].id)}
+ welcome(APPS.some(a=>a.id===first)?first:APPS[0].id)}
+/* 처음 화면: 누구에게 드리는 자료인지, 할 일 두 가지, 어디까지 하셨는지 */
+function welcome(first){const when=a=>{const l=local(a);return l&&l.saved?new Date(l.saved):null},any=APPS.some(when);
+ $("#msg").hidden=false;$("#msg").innerHTML=`<div class="card wel">${NAME?`<p class="to">${esc(NAME)}께</p>`:""}<h1>AI 마음 건강 대화 평가 기준 검토</h1>
+ <p>검토를 맡아 주셔서 감사합니다. 아래 두 가지를 차례로 봐 주시면 됩니다. 화면 맨 위의 탭으로 언제든 오가실 수 있습니다.</p>
+ ${APPS.map(a=>{const t=when(a);return `<button class="part" data-open="${a.id}"><b>${esc(a.label)}</b><span>${esc(a.desc||"")}</span><em class="${t?"on":""}">${t?`${t.toLocaleString("ko-KR",{month:"long",day:"numeric",hour:"numeric",minute:"2-digit"})} 저장`:"시작 전"}</em></button>`}).join("")}
+ <ul><li>답하신 내용은 저절로 저장됩니다. 파일을 내려받거나 따로 보내실 필요가 없습니다.</li><li>창을 닫으셔도 받으신 링크로 다시 들어오시면 하시던 곳부터 이어집니다. 다른 컴퓨터에서 여셔도 됩니다.</li><li>이 링크는 한 분께만 드리는 전용 링크입니다. 다른 분께 전달하지 말아 주십시오.</li></ul>
+ <button id="go">${any?"하시던 곳부터 이어서 하기":"시작하기"}</button></div>`;
+ $("#msg").onclick=e=>{const p=e.target.closest("[data-open]");if(p){$("#msg").onclick=null;show(p.dataset.open);return}if(e.target.id==="go"){$("#msg").onclick=null;show(first)}}}
 start();
 </script></body></html>
