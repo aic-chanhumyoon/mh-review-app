@@ -45,9 +45,10 @@ const $=s=>document.querySelector(s),esc=s=>(s??"").toString().replace(/[&<>"']/
 const hm=()=>new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
 /* ---- 접속 정보: 링크의 #e=<전문가>&k=<키> ---- */
 let AUTH=null;
-(function(){const h=new URLSearchParams(location.hash.slice(1)),e=h.get("e"),k=h.get("k"),temp=h.get("temp")==="1";
- if(e&&k){AUTH={e,k};try{(temp?sessionStorage:localStorage).setItem(AUTHKEY,JSON.stringify(AUTH))}catch(x){}}
- else{try{AUTH=JSON.parse(sessionStorage.getItem(AUTHKEY)||localStorage.getItem(AUTHKEY)||"null")}catch(x){}}
+/* 주소가 …-prof.<ID>/ 꼴이면(받는 분 전용 주소) ID를 주소에서 읽고, 링크에는 #k=<키>만 붙인다. 접속 정보도 ID별로 따로 기억한다. */
+(function(){const h=new URLSearchParams(location.hash.slice(1)),pm=/-prof\.([A-Za-z0-9_]+)\/?(?:index\.html)?$/.exec(location.pathname),pe=pm&&pm[1],e=pe||h.get("e"),k=h.get("k"),temp=h.get("temp")==="1",AK=pe?AUTHKEY+"_"+pe:AUTHKEY;
+ if(e&&k){AUTH={e,k};try{(temp?sessionStorage:localStorage).setItem(AK,JSON.stringify(AUTH))}catch(x){}}
+ else{try{AUTH=JSON.parse(sessionStorage.getItem(AK)||localStorage.getItem(AK)||"null")}catch(x){}}
  if(location.hash)history.replaceState(null,"",location.pathname+location.search)})();
 const E=AUTH&&AUTH.e;
 /* ---- 저장소 API ---- */
