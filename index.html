@@ -17,6 +17,9 @@ button,input{font:inherit;color:inherit}:focus-visible{outline:2px solid var(--t
 .part em{grid-column:2;grid-row:1/3;align-self:center;font-style:normal;font-size:12.5px;color:var(--mut);background:var(--mist);border-radius:999px;padding:2px 10px;white-space:nowrap}.part em.on{background:#E4F4EB;color:#1F7A50;font-weight:700}
 .wel ul{margin:16px 0 0;padding-left:18px;font-size:13.5px;color:var(--mut)}.wel li{margin:4px 0;word-break:keep-all}
 .wel #go{height:46px;padding:0 26px;font-size:16px}
+#note{position:fixed;left:50%;top:56px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:14px;max-width:min(760px,calc(100vw - 32px));background:#1F7A50;color:#fff;border-radius:12px;padding:12px 16px 12px 20px;font-size:15px;font-weight:700;box-shadow:0 10px 30px rgba(21,35,58,.28);word-break:keep-all}
+#note[hidden]{display:none}#note button{flex:none;border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;border-radius:8px;padding:4px 12px;font-size:13.5px;cursor:pointer}
+.tab{color:rgba(255,255,255,.86)}
 #sync{align-self:center;font-size:12px;color:rgba(255,255,255,.78);white-space:nowrap;display:flex;align-items:center;gap:6px}
 #sync i{width:8px;height:8px;border-radius:50%;background:#8FA0B5}#sync.ok i{background:#5BD39A}#sync.busy i{background:#F2C14E}#sync.err i{background:#FF8A8A}#sync.err{color:#FFD2D2;font-weight:700}
 #save{align-self:center;margin-left:10px;border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer}#save:hover{background:rgba(255,255,255,.12)}
@@ -33,13 +36,14 @@ button,input{font:inherit;color:inherit}:focus-visible{outline:2px solid var(--t
 </style></head><body>
 <div id="bar"><span class="t">AI 마음 건강 대화 검토</span><span id="tabs" style="display:flex"></span><span class="sp"></span><span id="whoami"></span><span id="sync"><i></i><span id="syncT"></span></span><button id="save" hidden>지금 저장</button></div>
 <div id="stage"><div class="center" id="msg"></div></div>
+<div id="note" role="status" hidden><span id="noteT"></span><button onclick="document.getElementById('note').hidden=true">닫기</button></div>
 <script>
 /* 자문 통합 화면: 두 자문 도구(평가 체계 ①~④, 위해 수준 기준)를 한 주소에서 열고,
    진행 내용을 저장소 progress/<전문가>/에 자동으로 커밋하며, 다시 열 때 저장소에서 복원한다.
    이 파일에는 자문 데이터도 토큰도 없다. 둘 다 접속 링크의 # 뒤에 붙은 키로 비공개 저장소에서 읽는다. */
 const REPO="aic-chanhumyoon/mental_health_feedback",BRANCH="main",AUTHKEY="mh_app_auth";
 const APPS=[
- {id:"expert",label:"1. 채점 방법 검토",desc:"AI 응답을 채점하는 방법을 확인하고, 실제 대화를 직접 채점해 봅니다.",sub:"",tpl:"tool/template.html",data:"tool/data.json",key:e=>"mh_expert_review_v4_"+e,v:4,file:"expert_review.json"},
+ {id:"expert",label:"1. 채점 방법 검토",desc:"AI 응답을 채점하는 방법을 확인하고, 대화 34개를 직접 채점합니다.",sub:"",tpl:"tool/template.html",data:"tool/data.json",key:e=>"mh_expert_review_v4_"+e,v:4,file:"expert_review.json"},
  {id:"harm",label:"2. 위해 점수 기준 검토",desc:"AI 응답의 해로운 정도를 0~5점으로 매기는 기준을 예시와 함께 검토합니다.",sub:"",tpl:"tool_harm/template.html",data:"tool_harm/data.json",key:e=>"mh_harm_review_v6_"+e,v:6,file:"harm_review.json"}];
 const $=s=>document.querySelector(s),esc=s=>(s??"").toString().replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hm=()=>new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
@@ -88,16 +92,24 @@ async function push(a,retry){const s=ST[a.id];if(s.busy)return;const loc=local(a
   s.dirty=true;setSync("err",e.status===401||e.status===403?"저장이 되지 않았습니다. 받으신 링크를 다시 눌러 주십시오":"저장이 되지 않았습니다. 잠시 뒤 다시 시도합니다");clearTimeout(s.timer);s.timer=setTimeout(()=>push(a),30000)}
  finally{s.busy=false}}
 const flush=()=>Promise.all(APPS.map(a=>{clearTimeout(ST[a.id].timer);return push(a)}));
-window.addEventListener("storage",e=>{const a=APPS.find(x=>x.key(E)===e.key);if(a)schedule(a)});
-setInterval(()=>{if(!E)return;APPS.forEach(a=>{const s=ST[a.id],loc=local(a);if(loc&&loc.saved&&loc.saved!==s.pushed&&!s.dirty&&!s.busy)schedule(a)});tabs()},5000);
+window.addEventListener("storage",e=>{const a=APPS.find(x=>x.key(E)===e.key);if(a){schedule(a);noteSent()}});
+setInterval(()=>{if(!E)return;APPS.forEach(a=>{const s=ST[a.id],loc=local(a);if(loc&&loc.saved&&loc.saved!==s.pushed&&!s.dirty&&!s.busy)schedule(a)});noteSent();tabs()},5000);
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&E)flush()});
 window.addEventListener("pagehide",()=>{if(E)flush()});
 window.addEventListener("beforeunload",e=>{if(E&&APPS.some(a=>ST[a.id].dirty||ST[a.id].busy)){flush();e.preventDefault();e.returnValue=""}});
 /* ---- 화면 ---- */
 let CUR=null;
-function tabs(){const ex=$("#tabs").querySelectorAll("[data-app]");if(ex.length===APPS.length){ex.forEach(b=>{const a=APPS.find(x=>x.id===b.dataset.app);let p="";try{const w=ST[a.id].frame&&ST[a.id].frame.contentWindow;if(w&&typeof w.prog==="function"){const v=w.prog();p=(v&&typeof v==="object"?v.pct:v)+"%"}}catch(e){}
+/* 제출 여부: 도구가 '제출하기'를 마치면 상태의 sent에 적는다 */
+const sentAt=a=>{const l=local(a);return (l&&l.sent&&l.sent.kind==="최종 제출"&&l.sent.at)||""};
+const SENT={};
+function pct(a){if(SENT[a.id])return "제출함";let p="";try{const w=ST[a.id].frame&&ST[a.id].frame.contentWindow;if(w&&typeof w.prog==="function"){const v=w.prog();p=(v&&typeof v==="object"?v.pct:v)+"%"}}catch(e){}return p}
+function showNote(t){$("#noteT").textContent=t;$("#note").hidden=false}
+/* 제출 직후 한 번, 다음에 무엇을 하면 되는지 알려 준다 */
+function noteSent(init){let ch=null;APPS.forEach(a=>{const t=sentAt(a);if(t&&t!==SENT[a.id]&&!init)ch=a;SENT[a.id]=t});
+ if(ch){const rest=APPS.filter(a=>!SENT[a.id]);showNote(rest.length?`'${ch.label}'를 제출하셨습니다. 이어서 맨 위의 '${rest[0].label}'를 눌러 주십시오.`:"두 가지 모두 제출하셨습니다. 감사합니다. 이 창은 닫으셔도 됩니다.");tabs()}}
+function tabs(){const ex=$("#tabs").querySelectorAll("[data-app]");if(ex.length===APPS.length){ex.forEach(b=>{const a=APPS.find(x=>x.id===b.dataset.app);const p=pct(a);
   b.classList.toggle("on",CUR===a.id);const sm=b.querySelector("small");if(sm&&sm.textContent!==p)sm.textContent=p});return}
- $("#tabs").innerHTML=APPS.map(a=>{let p="";try{const w=ST[a.id].frame&&ST[a.id].frame.contentWindow;if(w&&typeof w.prog==="function"){const v=w.prog();p=(v&&typeof v==="object"?v.pct:v)+"%"}}catch(e){}
+ $("#tabs").innerHTML=APPS.map(a=>{const p=pct(a);
  return `<button class="tab ${CUR===a.id?"on":""}" data-app="${a.id}">${esc(a.label)}<small>${p}</small></button>`}).join("")}
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest("[data-app]");if(b)show(b.dataset.app)});
 $("#save").onclick=()=>{flush().then(()=>{if(!APPS.some(a=>ST[a.id].dirty))setSync("ok",`자동으로 저장됨 ${hm()}`)})};
@@ -107,7 +119,7 @@ let NAME="";
 async function who(){try{const p=JSON.parse(await getRaw("app/people.json"));NAME=(p&&typeof p[E]==="string"&&p[E])||""}catch(e){NAME=""}$("#whoami").textContent=NAME}
 /* 통합 화면에서는 답이 저장소에 저절로 쌓이므로 파일 내려받기·불러오기 버튼을 숨기고, 성함 칸을 미리 채운다 */
 function extra(){const nm=JSON.stringify(NAME.replace(/\s*(교수님|선생님)$/,"")).replace(/</g,"\\u003c");
- return `<style>.band .hb:not(#sendbtn){display:none}button[onclick="exportCSV()"],button[onclick="exportJSON()"]{display:none}</style><script>try{if(${nm}&&!S.name){S.name=${nm};const w=document.getElementById("who");if(w)w.value=S.name;persist()}}catch(e){}<\/script>`}
+ return `<style>.band .hb:not(#sendbtn),.band .who{display:none}button[onclick="exportCSV()"],button[onclick="exportJSON()"]{display:none}</style><script>try{if(${nm}&&!S.name){S.name=${nm};const w=document.getElementById("who");if(w)w.value=S.name;persist()}}catch(e){}<\/script>`}
 async function build(a){if(!TPL[a.id]){const [tpl,data]=await Promise.all([getRaw(a.tpl),getRaw(a.data)]);
   const sub=JSON.stringify({repo:REPO,token:AUTH.k});
   let h=tpl.split("__EXPERT__").join(E).split("__SUBMIT__").join(sub).split("__DATA__").join(data.replace(/<\//g,"<\\/"));
@@ -128,7 +140,7 @@ function needAuth(){$("#bar").style.display="none";$("#stage").style.inset="0";$
  $("#ab").onclick=()=>{const e=$("#ae").value.trim(),k=$("#ak").value.trim();if(e&&k){location.hash="e="+encodeURIComponent(e)+"&k="+encodeURIComponent(k);location.reload()}}}
 async function start(){if(!AUTH){needAuth();return}
  $("#msg").innerHTML=`<div class="card"><h1>AI 마음 건강 대화 검토</h1><div class="load"><span>하시던 내용을 확인하는 중입니다. 잠시만 기다려 주십시오.</span></div></div>`;setSync("busy","확인하는 중");tabs();
- try{const n=await pull();await who();setSync("ok",n?"하시던 곳부터 이어집니다":"준비됐습니다");$("#save").hidden=false}catch(e){fail(e);return}
+ try{const n=await pull();await who();noteSent(true);setSync("ok",n?"하시던 곳부터 이어집니다":"준비됐습니다");$("#save").hidden=false}catch(e){fail(e);return}
  APPS.forEach(a=>{if(ST[a.id].dirty)schedule(a,true)});
  let first=APPS[0].id;try{first=sessionStorage.getItem("mh_app_tab")||first}catch(e){}
  welcome(APPS.some(a=>a.id===first)?first:APPS[0].id)}
@@ -136,7 +148,7 @@ async function start(){if(!AUTH){needAuth();return}
 function welcome(first){const when=a=>{const l=local(a);return l&&l.saved?new Date(l.saved):null},any=APPS.some(when);
  $("#msg").hidden=false;$("#msg").innerHTML=`<div class="card wel">${NAME?`<p class="to">${esc(NAME)}께</p>`:""}<h1>AI 마음 건강 대화 평가 기준 검토</h1>
  <p>검토를 맡아 주셔서 감사합니다. 아래 두 가지를 차례로 봐 주시면 됩니다. 화면 맨 위의 탭으로 언제든 오가실 수 있습니다.</p>
- ${APPS.map(a=>{const t=when(a);return `<button class="part" data-open="${a.id}"><b>${esc(a.label)}</b><span>${esc(a.desc||"")}</span><em class="${t?"on":""}">${t?`${t.toLocaleString("ko-KR",{month:"long",day:"numeric",hour:"numeric",minute:"2-digit"})} 저장`:"시작 전"}</em></button>`}).join("")}
+ ${APPS.map(a=>{const t=when(a),st=sentAt(a),f=d=>d.toLocaleString("ko-KR",{month:"long",day:"numeric",hour:"numeric",minute:"2-digit"});return `<button class="part" data-open="${a.id}"><b>${esc(a.label)}</b><span>${esc(a.desc||"")}</span><em class="${t?"on":""}">${st?`${f(new Date(st))} 제출함`:t?`${f(t)} 저장`:"시작 전"}</em></button>`}).join("")}
  <ul><li>답하신 내용은 저절로 저장됩니다. 파일을 내려받거나 따로 보내실 필요가 없습니다.</li><li>창을 닫으셔도 받으신 링크로 다시 들어오시면 하시던 곳부터 이어집니다. 다른 컴퓨터에서 여셔도 됩니다.</li><li>이 링크는 한 분께만 드리는 전용 링크입니다. 다른 분께 전달하지 말아 주십시오.</li></ul>
  <button id="go">${any?"하시던 곳부터 이어서 하기":"시작하기"}</button></div>`;
  $("#msg").onclick=e=>{const p=e.target.closest("[data-open]");if(p){$("#msg").onclick=null;show(p.dataset.open);return}if(e.target.id==="go"){$("#msg").onclick=null;show(first)}}}
